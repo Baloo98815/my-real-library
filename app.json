@@ -43,7 +43,8 @@
         {
           "cameraPermission": "L'appareil photo est nécessaire pour scanner les codes-barres de vos livres."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {
