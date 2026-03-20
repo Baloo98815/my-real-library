@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "My Real Library",
+    "slug": "my-real-library",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8F4EE"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "fr.andafter.myreallibrary",
+      "infoPlist": {
+        "NSCameraUsageDescription": "L'appareil photo est nécessaire pour scanner les codes-barres de vos livres."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F8F4EE"
+      },
+      "package": "fr.andafter.myreallibrary",
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "L'appareil photo est nécessaire pour scanner les codes-barres de vos livres."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c4f809e8-6cd6-4e00-9f13-424798d87e8a"
+      }
+    }
+  }
+}
