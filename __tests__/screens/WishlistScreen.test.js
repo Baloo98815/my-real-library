@@ -3,8 +3,8 @@
  *
  * Vérifie :
  *  - Affichage de la liste et état vide
- *  - Bouton Supprimer → Alert → removeFromWishlist
- *  - Bouton "Acheté !" → Alert → moveWishlistToLibrary
+ *  - Bouton Supprimer → Modal de confirmation → removeFromWishlist
+ *  - Bouton "Acheté !" → Modal de confirmation → moveWishlistToLibrary
  *  - Gestion des erreurs DB (pas de crash silencieux)
  *  - Edition de notes via la modale
  */
@@ -22,8 +22,6 @@ import {
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 jest.mock('../../src/database/database');
-
-// Le premier rendu React Native initialise les modules natifs (~10-20s)
 jest.setTimeout(60000);
 jest.mock('react-native/Libraries/Linking/Linking', () => ({
   openURL:    jest.fn(() => Promise.resolve()),
@@ -58,23 +56,11 @@ const WISH_ITEMS = [
 const renderAndWait = async (items = WISH_ITEMS) => {
   getWishlist.mockResolvedValue([...items]);
   const utils = render(<WishlistScreen navigation={mockNavigation} />);
-  // Attend que la liste soit rendue (header titre toujours présent)
-  // timeout 30s : le premier rendu initialise les modules RN natifs (~10-20s)
   await waitFor(
     () => utils.getByText(/livres? souhait/i),
     { timeout: 30000 }
   );
   return utils;
-};
-
-const pressAlertButton = async (buttonText, alertCalls = null) => {
-  const calls    = alertCalls ?? Alert.alert.mock.calls;
-  const lastCall = calls[calls.length - 1];
-  const buttons  = lastCall?.[2] || [];
-  const btn      = buttons.find((b) => b.text === buttonText);
-  if (btn?.onPress) {
-    await act(async () => { await btn.onPress(); });
-  }
 };
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
@@ -105,7 +91,7 @@ describe('Affichage de la wishlist', () => {
     expect(getByText('2 livres souhaités')).toBeTruthy();
   });
 
-  it('affiche l\'état vide quand la liste est vide', async () => {
+  it("affiche l'état vide quand la liste est vide", async () => {
     const { getByText } = await renderAndWait([]);
     expect(getByText('Votre wishlist est vide')).toBeTruthy();
   });
@@ -123,145 +109,133 @@ describe('Affichage de la wishlist', () => {
 
 // ─── Suppression ──────────────────────────────────────────────────────────────
 describe('Bouton Supprimer (corbeille)', () => {
-  it('affiche une alerte de confirmation', async () => {
-    const { getAllByTestId } = await renderAndWait();
+  it('affiche une modale de confirmation', async () => {
+    const { getAllByTestId, getByText } = await renderAndWait();
     const trashBtns = getAllByTestId('icon-trash-outline');
     expect(trashBtns.length).toBeGreaterThanOrEqual(1);
 
-    await act(async () => {
-      fireEvent.press(trashBtns[0]);
-    });
+    await act(async () => { fireEvent.press(trashBtns[0]); });
 
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Retirer de la wishlist',
-      expect.stringContaining('Dune'),
-      expect.arrayContaining([
-        expect.objectContaining({ text: 'Annuler' }),
-        expect.objectContaining({ text: 'Retirer' }),
-      ])
-    );
+    // La modale custom de confirmation doit apparaître
+    expect(getByText('Retirer de la wishlist')).toBeTruthy();
+    expect(getByText('Retirer')).toBeTruthy();
+    expect(getByText('Annuler')).toBeTruthy();
   });
 
   it('appelle removeFromWishlist avec le bon ID après confirmation', async () => {
-    const { getAllByTestId } = await renderAndWait();
-    fireEvent.press(getAllByTestId('icon-trash-outline')[0]);
+    const { getAllByTestId, getByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByTestId('icon-trash-outline')[0]); });
 
-    await pressAlertButton('Retirer');
+    await act(async () => { fireEvent.press(getByText('Retirer')); });
 
-    expect(removeFromWishlist).toHaveBeenCalledWith(1);
+    await waitFor(() => expect(removeFromWishlist).toHaveBeenCalledWith(1));
   });
 
-  it('retire l\'item de la liste localement après suppression', async () => {
-    const { getAllByTestId, queryByText } = await renderAndWait();
-    fireEvent.press(getAllByTestId('icon-trash-outline')[0]);
+  it("retire l'item de la liste localement après suppression", async () => {
+    const { getAllByTestId, getByText, queryByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByTestId('icon-trash-outline')[0]); });
 
-    await pressAlertButton('Retirer');
+    await act(async () => { fireEvent.press(getByText('Retirer')); });
 
-    // L'item "Dune" doit avoir disparu de la liste
     await waitFor(() => expect(queryByText('Dune')).toBeNull());
   });
 
-  it('ne supprime pas si l\'utilisateur annule', async () => {
-    const { getAllByTestId } = await renderAndWait();
-    fireEvent.press(getAllByTestId('icon-trash-outline')[0]);
+  it("ne supprime pas si l'utilisateur annule", async () => {
+    const { getAllByTestId, getByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByTestId('icon-trash-outline')[0]); });
 
-    await pressAlertButton('Annuler');
+    await act(async () => { fireEvent.press(getByText('Annuler')); });
 
     expect(removeFromWishlist).not.toHaveBeenCalled();
   });
 
   it('affiche une erreur si removeFromWishlist échoue', async () => {
     removeFromWishlist.mockRejectedValue(new Error('SQLite error'));
-    const { getAllByTestId } = await renderAndWait();
-    fireEvent.press(getAllByTestId('icon-trash-outline')[0]);
+    const { getAllByTestId, getByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByTestId('icon-trash-outline')[0]); });
 
-    const savedCalls = [...Alert.alert.mock.calls];
-    Alert.alert.mockClear();
-    await pressAlertButton('Retirer', savedCalls);
+    await act(async () => { fireEvent.press(getByText('Retirer')); });
 
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Erreur',
-      expect.stringContaining('Impossible de retirer')
-    );
+    await waitFor(() => {
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Erreur',
+        expect.stringContaining('Impossible de retirer')
+      );
+    });
   });
 });
 
 // ─── Acheté ! (move to library) ───────────────────────────────────────────────
 describe('Bouton Acheté !', () => {
-  it('affiche une alerte de confirmation', async () => {
-    const { getAllByText } = await renderAndWait();
+  it('affiche une modale de confirmation', async () => {
+    const { getAllByText, getByText } = await renderAndWait();
     const acheteBtns = getAllByText('Acheté !');
     expect(acheteBtns.length).toBeGreaterThanOrEqual(1);
 
-    await act(async () => {
-      fireEvent.press(acheteBtns[0]);
-    });
+    await act(async () => { fireEvent.press(acheteBtns[0]); });
 
-    expect(Alert.alert).toHaveBeenCalledWith(
-      expect.stringContaining("l'avez acheté"),
-      expect.stringContaining('Dune'),
-      expect.arrayContaining([
-        expect.objectContaining({ text: 'Annuler' }),
-        expect.objectContaining({ text: 'Ajouter à la bibliothèque' }),
-      ])
-    );
+    // La modale custom de confirmation doit apparaître
+    expect(getByText("Vous l'avez acheté !")).toBeTruthy();
+    expect(getByText('Ajouter')).toBeTruthy();
+    expect(getByText('Annuler')).toBeTruthy();
   });
 
   it('appelle moveWishlistToLibrary après confirmation', async () => {
-    const { getAllByText } = await renderAndWait();
-    fireEvent.press(getAllByText('Acheté !')[0]);
+    const { getAllByText, getByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByText('Acheté !')[0]); });
 
-    await pressAlertButton('Ajouter à la bibliothèque');
+    await act(async () => { fireEvent.press(getByText('Ajouter')); });
 
-    expect(moveWishlistToLibrary).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 1, title: 'Dune' })
-    );
+    await waitFor(() => {
+      expect(moveWishlistToLibrary).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 1, title: 'Dune' })
+      );
+    });
   });
 
-  it('retire l\'item de la wishlist localement après déplacement', async () => {
-    const { getAllByText, queryByText } = await renderAndWait();
-    fireEvent.press(getAllByText('Acheté !')[0]);
+  it("retire l'item de la wishlist localement après déplacement", async () => {
+    const { getAllByText, getByText, queryByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByText('Acheté !')[0]); });
 
-    await pressAlertButton('Ajouter à la bibliothèque');
+    await act(async () => { fireEvent.press(getByText('Ajouter')); });
 
     await waitFor(() => expect(queryByText('Dune')).toBeNull());
   });
 
-  it('ne déplace pas si l\'utilisateur annule', async () => {
-    const { getAllByText } = await renderAndWait();
-    fireEvent.press(getAllByText('Acheté !')[0]);
+  it("ne déplace pas si l'utilisateur annule", async () => {
+    const { getAllByText, getByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByText('Acheté !')[0]); });
 
-    await pressAlertButton('Annuler');
+    await act(async () => { fireEvent.press(getByText('Annuler')); });
 
     expect(moveWishlistToLibrary).not.toHaveBeenCalled();
   });
 
   it('affiche une erreur si moveWishlistToLibrary échoue', async () => {
     moveWishlistToLibrary.mockRejectedValue(new Error('SQLite error'));
-    const { getAllByText } = await renderAndWait();
-    fireEvent.press(getAllByText('Acheté !')[0]);
+    const { getAllByText, getByText } = await renderAndWait();
+    await act(async () => { fireEvent.press(getAllByText('Acheté !')[0]); });
 
-    const savedCalls = [...Alert.alert.mock.calls];
-    Alert.alert.mockClear();
-    await pressAlertButton('Ajouter à la bibliothèque', savedCalls);
+    await act(async () => { fireEvent.press(getByText('Ajouter')); });
 
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Erreur',
-      expect.stringContaining('Impossible de déplacer')
-    );
+    await waitFor(() => {
+      expect(Alert.alert).toHaveBeenCalledWith(
+        'Erreur',
+        expect.stringContaining('Impossible de déplacer')
+      );
+    });
   });
 });
 
 // ─── Notes ────────────────────────────────────────────────────────────────────
 describe('Edition de notes', () => {
-  it('affiche le bouton d\'édition des notes', async () => {
+  it("affiche le bouton d'édition des notes", async () => {
     const { getAllByTestId } = await renderAndWait();
     const editBtns = getAllByTestId('icon-create-outline');
     expect(editBtns.length).toBeGreaterThanOrEqual(1);
   });
 
   it('appelle updateWishlistNotes avec le bon ID et les notes', async () => {
-    // Test direct de la fonction mockée
     await act(async () => {
       await updateWishlistNotes(1, 'Ma note de test');
     });

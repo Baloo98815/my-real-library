@@ -41,15 +41,17 @@ const READING_STATUSES = ['unread', 'reading', 'read'];
 export default function BookDetailScreen({ route, navigation }) {
   const { bookId } = route.params;
 
-  const [book,         setBook]         = useState(null);
-  const [loading,      setLoading]      = useState(true);
+  const [book,              setBook]              = useState(null);
+  const [loading,           setLoading]           = useState(true);
 
   // Modales
-  const [showLendModal,   setShowLendModal]   = useState(false);
-  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
-  const [lendName,        setLendName]        = useState('');
-  const [lendSaving,      setLendSaving]      = useState(false);
-  const [inWishlist,      setInWishlist]      = useState(false);
+  const [showLendModal,     setShowLendModal]     = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReturnConfirm, setShowReturnConfirm] = useState(false);
+  const [lendName,          setLendName]          = useState('');
+  const [lendSaving,        setLendSaving]        = useState(false);
+  const [inWishlist,        setInWishlist]        = useState(false);
+  const [actionLoading,     setActionLoading]     = useState(false);
 
   // ─── Chargement ─────────────────────────────────────────────────────────────
   const loadBook = useCallback(async () => {
@@ -102,51 +104,54 @@ export default function BookDetailScreen({ route, navigation }) {
       setInWishlist(true);
       Alert.alert('Ajouté à la wishlist !', `« ${book.title} » est dans votre liste de souhaits.`);
     } catch (e) {
-      Alert.alert('Erreur', 'Impossible d\'ajouter à la wishlist.');
+      Alert.alert('Erreur', "Impossible d'ajouter à la wishlist.");
     }
   };
 
-  const handleReturn = () => {
-    Alert.alert(
-      'Livre rendu',
-      `Confirmer que ${book.lent_to} a rendu le livre ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Confirmer',
-          onPress: async () => {
-            try {
-              await returnBook(bookId);
-              setBook((prev) => ({ ...prev, lent_to: null }));
-            } catch (e) {
-              Alert.alert('Erreur', 'Impossible de marquer le livre comme rendu. Veuillez réessayer.');
-            }
-          },
-        },
-      ]
-    );
+  // Confirmation suppression via Modal custom (pas Alert.alert)
+  const handleDelete = () => {
+    console.log('[BookDetail] handleDelete → bookId:', bookId);
+    setShowDeleteConfirm(true);
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Supprimer ce livre',
-      `Êtes-vous sûr de vouloir supprimer « ${book?.title} » de votre bibliothèque ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteBook(bookId);
-              navigation.goBack();
-            } catch (e) {
-              Alert.alert('Erreur', 'Impossible de supprimer ce livre. Veuillez réessayer.');
-            }
-          },
-        },
-      ]
-    );
+  const doDelete = async () => {
+    console.log('[BookDetail] doDelete → deleteBook(', bookId, ')');
+    setActionLoading(true);
+    try {
+      await deleteBook(bookId);
+      console.log('[BookDetail] deleteBook OK → goBack');
+      setShowDeleteConfirm(false);
+      navigation.goBack();
+    } catch (e) {
+      console.error('[BookDetail] deleteBook ERREUR:', e);
+      setShowDeleteConfirm(false);
+      Alert.alert('Erreur', 'Impossible de supprimer ce livre. Veuillez réessayer.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Confirmation rendu via Modal custom (pas Alert.alert)
+  const handleReturn = () => {
+    console.log('[BookDetail] handleReturn → lent_to:', book?.lent_to);
+    setShowReturnConfirm(true);
+  };
+
+  const doReturn = async () => {
+    console.log('[BookDetail] doReturn → returnBook(', bookId, ')');
+    setActionLoading(true);
+    try {
+      await returnBook(bookId);
+      setBook((prev) => ({ ...prev, lent_to: null }));
+      console.log('[BookDetail] returnBook OK');
+      setShowReturnConfirm(false);
+    } catch (e) {
+      console.error('[BookDetail] returnBook ERREUR:', e);
+      setShowReturnConfirm(false);
+      Alert.alert('Erreur', 'Impossible de marquer le livre comme rendu. Veuillez réessayer.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -179,7 +184,11 @@ export default function BookDetailScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={22} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.navTitle} numberOfLines={1}>{book.title}</Text>
-        <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
+        <TouchableOpacity
+          testID="btn-delete"
+          onPress={handleDelete}
+          style={styles.deleteBtn}
+        >
           <Ionicons name="trash-outline" size={22} color={Colors.error} />
         </TouchableOpacity>
       </View>
@@ -366,6 +375,79 @@ export default function BookDetailScreen({ route, navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* ── Modale confirmation suppression ── */}
+      <Modal
+        visible={showDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteConfirm(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmSheet}>
+            <Ionicons name="trash-outline" size={32} color={Colors.error} style={{ marginBottom: Spacing.md }} />
+            <Text style={styles.confirmTitle}>Supprimer ce livre</Text>
+            <Text style={styles.confirmSubtitle}>
+              Êtes-vous sûr de vouloir supprimer{'\n'}« {book?.title} » ?
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowDeleteConfirm(false)}
+                disabled={actionLoading}
+              >
+                <Text style={styles.modalCancelBtnText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmDeleteBtn, actionLoading && { opacity: 0.5 }]}
+                onPress={doDelete}
+                disabled={actionLoading}
+              >
+                {actionLoading
+                  ? <ActivityIndicator size="small" color={Colors.textInverse} />
+                  : <Text style={styles.modalConfirmBtnText}>Supprimer</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Modale confirmation rendu ── */}
+      <Modal
+        visible={showReturnConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowReturnConfirm(false)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmSheet}>
+            <Ionicons name="checkmark-circle-outline" size={32} color={Colors.secondary} style={{ marginBottom: Spacing.md }} />
+            <Text style={styles.confirmTitle}>Livre rendu</Text>
+            <Text style={styles.confirmSubtitle}>
+              Confirmer que {book?.lent_to} a rendu le livre ?
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowReturnConfirm(false)}
+                disabled={actionLoading}
+              >
+                <Text style={styles.modalCancelBtnText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, actionLoading && { opacity: 0.5 }]}
+                onPress={doReturn}
+                disabled={actionLoading}
+              >
+                {actionLoading
+                  ? <ActivityIndicator size="small" color={Colors.textInverse} />
+                  : <Text style={styles.modalConfirmBtnText}>Confirmer</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -621,7 +703,7 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
   },
 
-  // Modale prêt
+  // Modales communes
   modalOverlay: {
     flex:            1,
     backgroundColor: Colors.overlay,
@@ -693,5 +775,43 @@ const styles = StyleSheet.create({
     fontSize:   Typography.fontSize.md,
     color:      Colors.textInverse,
     fontWeight: Typography.fontWeight.semiBold,
+  },
+
+  // Modale confirmation (centre de l'écran)
+  confirmOverlay: {
+    flex:            1,
+    backgroundColor: Colors.overlay,
+    justifyContent:  'center',
+    alignItems:      'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  confirmSheet: {
+    backgroundColor: Colors.surface,
+    borderRadius:    BorderRadius.xl,
+    padding:         Spacing.xl,
+    width:           '100%',
+    alignItems:      'center',
+    ...Shadow.lg,
+  },
+  confirmTitle: {
+    fontSize:     Typography.fontSize.xl,
+    fontWeight:   Typography.fontWeight.bold,
+    color:        Colors.textPrimary,
+    marginBottom: Spacing.sm,
+    textAlign:    'center',
+  },
+  confirmSubtitle: {
+    fontSize:     Typography.fontSize.sm,
+    color:        Colors.textSecondary,
+    marginBottom: Spacing.xl,
+    textAlign:    'center',
+    lineHeight:   20,
+  },
+  confirmDeleteBtn: {
+    flex:            2,
+    alignItems:      'center',
+    paddingVertical: Spacing.md,
+    borderRadius:    BorderRadius.md,
+    backgroundColor: Colors.error,
   },
 });

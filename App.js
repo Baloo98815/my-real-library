@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { initDatabase } from './src/database/database';
 import AppNavigator    from './src/navigation/AppNavigator';
@@ -48,10 +48,12 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="dark" />
-      <AppNavigator />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar style="dark" />
+        <AppNavigator />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -216,11 +216,14 @@ const cardStyles = StyleSheet.create({
 
 // ─── Écran principal ──────────────────────────────────────────────────────────
 export default function WishlistScreen({ navigation }) {
-  const [items,         setItems]         = useState([]);
-  const [loading,       setLoading]       = useState(true);
-  const [notesModal,    setNotesModal]    = useState(null); // item en édition
-  const [notesText,     setNotesText]     = useState('');
-  const [notesSaving,   setNotesSaving]   = useState(false);
+  const [items,             setItems]             = useState([]);
+  const [loading,           setLoading]           = useState(true);
+  const [notesModal,        setNotesModal]        = useState(null); // item en édition
+  const [notesText,         setNotesText]         = useState('');
+  const [notesSaving,       setNotesSaving]       = useState(false);
+  const [pendingDeleteItem, setPendingDeleteItem] = useState(null); // confirm suppression
+  const [pendingMoveItem,   setPendingMoveItem]   = useState(null); // confirm déplacement
+  const [actionLoading,     setActionLoading]     = useState(false);
 
   // ─── Chargement ─────────────────────────────────────────────────────────────
   const loadWishlist = useCallback(async () => {
@@ -242,52 +245,59 @@ export default function WishlistScreen({ navigation }) {
   );
 
   // ─── Actions ────────────────────────────────────────────────────────────────
+  // Ouvre la Modal de confirmation suppression (pas Alert.alert)
   const handleDelete = (item) => {
-    Alert.alert(
-      'Retirer de la wishlist',
-      `Retirer « ${item.title} » de votre liste de souhaits ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Retirer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeFromWishlist(item.id);
-              setItems((prev) => prev.filter((i) => i.id !== item.id));
-            } catch (e) {
-              Alert.alert('Erreur', 'Impossible de retirer ce livre de la wishlist. Veuillez réessayer.');
-            }
-          },
-        },
-      ]
-    );
+    console.log('[Wishlist] handleDelete → item.id:', item?.id, item?.title);
+    setPendingDeleteItem(item);
   };
 
+  const doDelete = async () => {
+    if (!pendingDeleteItem) return;
+    const item = pendingDeleteItem;
+    console.log('[Wishlist] doDelete → removeFromWishlist(', item.id, ')');
+    setActionLoading(true);
+    try {
+      await removeFromWishlist(item.id);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      console.log('[Wishlist] removeFromWishlist OK');
+      setPendingDeleteItem(null);
+    } catch (e) {
+      console.error('[Wishlist] removeFromWishlist ERREUR:', e);
+      setPendingDeleteItem(null);
+      Alert.alert('Erreur', 'Impossible de retirer ce livre de la wishlist. Veuillez réessayer.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Ouvre la Modal de confirmation "Acheté !" (pas Alert.alert)
   const handleMoveToLibrary = (item) => {
-    Alert.alert(
-      "Vous l'avez acheté !",
-      `Ajouter « ${item.title} » à votre bibliothèque et le retirer de la wishlist ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Ajouter à la bibliothèque',
-          onPress: async () => {
-            try {
-              await moveWishlistToLibrary(item);
-              setItems((prev) => prev.filter((i) => i.id !== item.id));
-              Alert.alert(
-                'Livre ajouté !',
-                `« ${item.title} » est maintenant dans votre bibliothèque.`,
-                [{ text: 'Voir la bibliothèque', onPress: () => navigation.navigate('LibraryTab') }]
-              );
-            } catch (e) {
-              Alert.alert('Erreur', 'Impossible de déplacer ce livre vers la bibliothèque. Veuillez réessayer.');
-            }
-          },
-        },
-      ]
-    );
+    console.log('[Wishlist] handleMoveToLibrary → item.id:', item?.id, item?.title);
+    setPendingMoveItem(item);
+  };
+
+  const doMove = async () => {
+    if (!pendingMoveItem) return;
+    const item = pendingMoveItem;
+    console.log('[Wishlist] doMove → moveWishlistToLibrary(', item.id, ')');
+    setActionLoading(true);
+    try {
+      await moveWishlistToLibrary(item);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      console.log('[Wishlist] moveWishlistToLibrary OK');
+      setPendingMoveItem(null);
+      Alert.alert(
+        'Livre ajouté !',
+        `« ${item.title} » est maintenant dans votre bibliothèque.`,
+        [{ text: 'Voir la bibliothèque', onPress: () => navigation.navigate('LibraryTab') }]
+      );
+    } catch (e) {
+      console.error('[Wishlist] moveWishlistToLibrary ERREUR:', e);
+      setPendingMoveItem(null);
+      Alert.alert('Erreur', 'Impossible de déplacer ce livre vers la bibliothèque. Veuillez réessayer.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleOpenLibrairie = async (item) => {
@@ -391,6 +401,78 @@ export default function WishlistScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* ── Modale confirmation suppression ── */}
+      <Modal
+        visible={!!pendingDeleteItem}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingDeleteItem(null)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmSheet}>
+            <Ionicons name="trash-outline" size={32} color={Colors.error} style={{ marginBottom: Spacing.md }} />
+            <Text style={styles.confirmTitle}>Retirer de la wishlist</Text>
+            <Text style={styles.confirmSubtitle}>
+              Retirer « {pendingDeleteItem?.title} »{'\n'}de votre liste de souhaits ?
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setPendingDeleteItem(null)}
+                disabled={actionLoading}
+              >
+                <Text style={styles.modalCancelBtnText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmDeleteBtn, actionLoading && { opacity: 0.5 }]}
+                onPress={doDelete}
+                disabled={actionLoading}
+              >
+                {actionLoading
+                  ? <ActivityIndicator size="small" color={Colors.textInverse} />
+                  : <Text style={styles.modalConfirmBtnText}>Retirer</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Modale confirmation "Acheté !" ── */}
+      <Modal
+        visible={!!pendingMoveItem}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingMoveItem(null)}
+      >
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmSheet}>
+            <Ionicons name="checkmark-circle-outline" size={32} color={Colors.secondary} style={{ marginBottom: Spacing.md }} />
+            <Text style={styles.confirmTitle}>Vous l'avez acheté !</Text>
+            <Text style={styles.confirmSubtitle}>
+              Ajouter « {pendingMoveItem?.title} »{'\n'}à votre bibliothèque ?
+            </Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setPendingMoveItem(null)}
+                disabled={actionLoading}
+              >
+                <Text style={styles.modalCancelBtnText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, actionLoading && { opacity: 0.5 }]}
+                onPress={doMove}
+                disabled={actionLoading}
+              >
+                {actionLoading
+                  ? <ActivityIndicator size="small" color={Colors.textInverse} />
+                  : <Text style={styles.modalConfirmBtnText}>Ajouter</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modale notes */}
       <Modal
@@ -550,6 +632,44 @@ const styles = StyleSheet.create({
     fontSize:   Typography.fontSize.md,
     fontWeight: Typography.fontWeight.semiBold,
     color:      Colors.textInverse,
+  },
+
+  // Overlay centré pour confirmations
+  confirmOverlay: {
+    flex:            1,
+    backgroundColor: Colors.overlay,
+    justifyContent:  'center',
+    alignItems:      'center',
+    paddingHorizontal: Spacing.xl,
+  },
+  confirmSheet: {
+    backgroundColor: Colors.surface,
+    borderRadius:    BorderRadius.xl,
+    padding:         Spacing.xl,
+    width:           '100%',
+    alignItems:      'center',
+    ...Shadow.lg,
+  },
+  confirmTitle: {
+    fontSize:     Typography.fontSize.xl,
+    fontWeight:   Typography.fontWeight.bold,
+    color:        Colors.textPrimary,
+    marginBottom: Spacing.sm,
+    textAlign:    'center',
+  },
+  confirmSubtitle: {
+    fontSize:     Typography.fontSize.sm,
+    color:        Colors.textSecondary,
+    marginBottom: Spacing.xl,
+    textAlign:    'center',
+    lineHeight:   20,
+  },
+  confirmDeleteBtn: {
+    flex:            2,
+    alignItems:      'center',
+    paddingVertical: Spacing.md,
+    borderRadius:    BorderRadius.md,
+    backgroundColor: Colors.error,
   },
 
   // Modale notes
