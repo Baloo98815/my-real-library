@@ -5,6 +5,29 @@ const OPENLIBRARY_BASE  = 'https://openlibrary.org';
 const COVERS_BASE       = 'https://covers.openlibrary.org/b';
 const GOOGLE_BOOKS_BASE = 'https://www.googleapis.com/books/v1';
 
+// ─── Mode debug API ───────────────────────────────────────────────────────────
+/**
+ * Activez DEBUG_API pour loguer les réponses brutes des APIs lors d'une recherche.
+ * Utile pour diagnostiquer pourquoi un livre trouvé sur desktop ne l'est pas sur mobile.
+ *
+ * Par défaut : actif en mode développement (__DEV__).
+ * Pour l'activer manuellement en production, passez à `true`.
+ */
+export const DEBUG_API = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
+
+/**
+ * Logue une réponse API brute (URL + JSON) si le mode debug est actif.
+ * N'a aucun effet en production (DEBUG_API = false).
+ */
+const debugLog = (label, url, data) => {
+  if (!DEBUG_API) return;
+  logger.debug(`[API DEBUG] ${label}`, { url, response: data });
+  // Aussi en console pour un accès rapide dans Metro / Expo Go
+  console.log(`\n🔍 [API DEBUG] ${label}`);
+  console.log(`   URL     : ${url}`);
+  console.log(`   Réponse :`, JSON.stringify(data, null, 2).substring(0, 2000));
+};
+
 // ─── Recherche par code ───────────────────────────────────────────────────────
 /**
  * Cherche un livre à partir de n'importe quel code
@@ -48,11 +71,11 @@ export const searchByTitle = async (title) => {
 
   try {
     const encoded = encodeURIComponent(title.trim());
-    const response = await fetch(
-      `${OPENLIBRARY_BASE}/search.json?title=${encoded}&limit=10&fields=key,title,author_name,cover_i,isbn,first_publish_year,publisher,number_of_pages_median,language`
-    );
+    const url = `${OPENLIBRARY_BASE}/search.json?title=${encoded}&limit=10&fields=key,title,author_name,cover_i,isbn,first_publish_year,publisher,number_of_pages_median,language`;
+    const response = await fetch(url);
     if (!response.ok) throw new Error('OpenLibrary search failed');
     const data = await response.json();
+    debugLog('OpenLibrary Title Search', url, data);
 
     if (!data.docs || data.docs.length === 0) {
       // Fallback Google Books
@@ -68,12 +91,12 @@ export const searchByTitle = async (title) => {
 
 // ─── OpenLibrary ───────────────────────────────────────────────────────────────
 const fetchOpenLibraryByISBN = async (isbn) => {
+  const url = `${OPENLIBRARY_BASE}/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
   try {
-    const response = await fetch(
-      `${OPENLIBRARY_BASE}/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`
-    );
+    const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json();
+    debugLog('OpenLibrary ISBN', url, data);
     const bookData = data[`ISBN:${isbn}`];
     if (!bookData) return null;
     return parseOpenLibraryBookData(bookData, isbn);
@@ -83,12 +106,12 @@ const fetchOpenLibraryByISBN = async (isbn) => {
 };
 
 const fetchOpenLibrarySearch = async (query) => {
+  const url = `${OPENLIBRARY_BASE}/search.json?q=${encodeURIComponent(query)}&limit=1`;
   try {
-    const response = await fetch(
-      `${OPENLIBRARY_BASE}/search.json?q=${encodeURIComponent(query)}&limit=1`
-    );
+    const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json();
+    debugLog('OpenLibrary Search', url, data);
     if (!data.docs || data.docs.length === 0) return null;
     return parseOpenLibrarySearchDoc(data.docs[0]);
   } catch {
@@ -131,12 +154,12 @@ const parseOpenLibrarySearchDoc = (doc) => {
 
 // ─── Google Books ──────────────────────────────────────────────────────────────
 const fetchGoogleBooks = async (query) => {
+  const url = `${GOOGLE_BOOKS_BASE}/volumes?q=${encodeURIComponent(query)}&maxResults=1`;
   try {
-    const response = await fetch(
-      `${GOOGLE_BOOKS_BASE}/volumes?q=${encodeURIComponent(query)}&maxResults=1`
-    );
+    const response = await fetch(url);
     if (!response.ok) return null;
     const data = await response.json();
+    debugLog('Google Books', url, data);
     if (!data.items || data.items.length === 0) return null;
     return parseGoogleBook(data.items[0]);
   } catch {
@@ -145,12 +168,12 @@ const fetchGoogleBooks = async (query) => {
 };
 
 const searchGoogleBooksByTitle = async (title) => {
+  const url = `${GOOGLE_BOOKS_BASE}/volumes?q=intitle:${encodeURIComponent(title)}&maxResults=8`;
   try {
-    const response = await fetch(
-      `${GOOGLE_BOOKS_BASE}/volumes?q=intitle:${encodeURIComponent(title)}&maxResults=8`
-    );
+    const response = await fetch(url);
     if (!response.ok) return [];
     const data = await response.json();
+    debugLog('Google Books (title)', url, data);
     if (!data.items) return [];
     return data.items.map(parseGoogleBook);
   } catch {

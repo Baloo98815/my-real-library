@@ -115,8 +115,12 @@ export default function BookDetailScreen({ route, navigation }) {
         {
           text: 'Confirmer',
           onPress: async () => {
-            await returnBook(bookId);
-            setBook((prev) => ({ ...prev, lent_to: null }));
+            try {
+              await returnBook(bookId);
+              setBook((prev) => ({ ...prev, lent_to: null }));
+            } catch (e) {
+              Alert.alert('Erreur', 'Impossible de marquer le livre comme rendu. Veuillez réessayer.');
+            }
           },
         },
       ]
@@ -133,8 +137,12 @@ export default function BookDetailScreen({ route, navigation }) {
           text: 'Supprimer',
           style: 'destructive',
           onPress: async () => {
-            await deleteBook(bookId);
-            navigation.goBack();
+            try {
+              await deleteBook(bookId);
+              navigation.goBack();
+            } catch (e) {
+              Alert.alert('Erreur', 'Impossible de supprimer ce livre. Veuillez réessayer.');
+            }
           },
         },
       ]

@@ -55,6 +55,7 @@
       "^expo-file-system$": "<rootDir>/__mocks__/expo-file-system.js",
       "^@expo/vector-icons$": "<rootDir>/__mocks__/@expo/vector-icons/index.js",
       "^@expo/vector-icons/(.*)$": "<rootDir>/__mocks__/@expo/vector-icons/index.js",
+      "^react-native-safe-area-context$": "<rootDir>/__mocks__/react-native-safe-area-context.js",
       "ViewConfigIgnore(\\.js)?$": "<rootDir>/__mocks__/ViewConfigIgnore.js"
     },
     "testMatch": [

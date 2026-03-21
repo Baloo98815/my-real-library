@@ -252,8 +252,12 @@ export default function WishlistScreen({ navigation }) {
           text: 'Retirer',
           style: 'destructive',
           onPress: async () => {
-            await removeFromWishlist(item.id);
-            setItems((prev) => prev.filter((i) => i.id !== item.id));
+            try {
+              await removeFromWishlist(item.id);
+              setItems((prev) => prev.filter((i) => i.id !== item.id));
+            } catch (e) {
+              Alert.alert('Erreur', 'Impossible de retirer ce livre de la wishlist. Veuillez réessayer.');
+            }
           },
         },
       ]
@@ -262,20 +266,24 @@ export default function WishlistScreen({ navigation }) {
 
   const handleMoveToLibrary = (item) => {
     Alert.alert(
-      '🎉 Vous l\'avez acheté !',
+      "Vous l'avez acheté !",
       `Ajouter « ${item.title} » à votre bibliothèque et le retirer de la wishlist ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Ajouter à la bibliothèque',
           onPress: async () => {
-            await moveWishlistToLibrary(item);
-            setItems((prev) => prev.filter((i) => i.id !== item.id));
-            Alert.alert(
-              'Livre ajouté !',
-              `« ${item.title} » est maintenant dans votre bibliothèque.`,
-              [{ text: 'Voir la bibliothèque', onPress: () => navigation.navigate('LibraryTab') }]
-            );
+            try {
+              await moveWishlistToLibrary(item);
+              setItems((prev) => prev.filter((i) => i.id !== item.id));
+              Alert.alert(
+                'Livre ajouté !',
+                `« ${item.title} » est maintenant dans votre bibliothèque.`,
+                [{ text: 'Voir la bibliothèque', onPress: () => navigation.navigate('LibraryTab') }]
+              );
+            } catch (e) {
+              Alert.alert('Erreur', 'Impossible de déplacer ce livre vers la bibliothèque. Veuillez réessayer.');
+            }
           },
         },
       ]

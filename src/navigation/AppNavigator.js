@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import LibraryScreen    from '../screens/LibraryScreen';
 import AddBookScreen    from '../screens/AddBookScreen';
@@ -32,6 +33,12 @@ const TAB_ICONS = {
 
 // ─── Navigateur principal ─────────────────────────────────────────────────────
 export default function AppNavigator() {
+  const insets = useSafeAreaInsets();
+  // Sur Android avec barre de navigation gestuelle ou boutons, insets.bottom
+  // reflète la hauteur de cette barre — on s'assure que la tab bar ne passe pas dessous.
+  const tabBarPaddingBottom = Math.max(insets.bottom, 6);
+  const tabBarHeight        = 56 + tabBarPaddingBottom;
+
   return (
     <NavigationContainer>
       <Tab.Navigator
@@ -44,9 +51,9 @@ export default function AppNavigator() {
             backgroundColor: Colors.surface,
             borderTopColor:  Colors.border,
             borderTopWidth:  1,
-            paddingBottom:   6,
+            paddingBottom:   tabBarPaddingBottom,
             paddingTop:      6,
-            height:          60,
+            height:          tabBarHeight,
           },
           tabBarLabelStyle: {
             fontSize:   Typography.fontSize.xs,
